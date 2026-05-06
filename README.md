@@ -1,25 +1,62 @@
-# Course template
+# MetaNetX Tutorial — Improving metabolite identification
 
-This is a template for SIB-training course repository when there is no website attached that you can use to [create a new repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
+This repository contains teaching material for a hands-on workshop on **metabolite identification and data quality assessment using MetaNetX**.
 
-> If you want to have a repository with a website attached go to the [course_website_template](https://github.com/sib-swiss/course_website_template) instead.
+The tutorial illustrates how to:
+- reconcile metabolite identifiers across databases
+- explore **isomer relationships** (generic vs specific)
+- detect common **data quality issues** in metabolomics datasets
 
-This templates offers a number of basic elements that should be common to all course repository, 
-like a readme, a file describing the license, or giving zenodo information when publishing a release.
+---
 
- * README.md    : this file. It will be presented on the front page of your repository.
- * .zenodo.json : JSON file to preset the data when publishing a release with zenodo. Change the course title and content creator part.
- * LICENSE.md   : CC-BY-4.0 license ; this file is used by github to show this on your repository
+## Contents
 
+This repository provides:
 
+### Interactive tutorial (Quarto)
+- `MetaNetX_metabolites_en.qmd` — English version  
+- `MetaNetX_metabolites_fr.qmd` — French version  
+- Corresponding HTML outputs:
+  - `MetaNetX_metabolites_en.html`
+  - `MetaNetX_metabolites_fr.html`
 
-We also propose three folders to organize course content.
+The tutorial is **self-contained** (pre-rendered):
+- all SPARQL queries are already executed
+- results are embedded for easy exploration
 
- * slides/ : put there the pdf file of your slides
- * data/   : put there data files used in demonstrations, exercises, and hands-on
- * assets/ : put there "resource" files such as the pptx files of your slides, some images files, pdfs which are not directly part of the slides (such as a manual, a cheatsheet, ...), ...
+---
 
+### Dataset
+- `data/Features_METABOLOMICS.xlsx`
 
+A real-world metabolomics dataset used to demonstrate:
+- identifier mapping
+- duplicate detection
+- cross-database inconsistencies
+- generic vs specific entity conflicts
 
-Any contribution to this course material is highly appreciated 👍. 
-Please [create an issue](https://github.com/sib-swiss/course_template/issues) or submit a pull request to do so.
+---
+
+### Slides
+- `slides/` — PDF slide deck used for the course
+
+---
+
+## How to use this tutorial
+
+### Option 1 — Explore directly (recommended)
+Open the HTML files:
+- no installation required
+- interactive tables and graphs included
+
+---
+
+### Option 2 — Run the code
+
+Install required R packages:
+
+```r
+install.packages(c(
+  "sparqlr", "readxl", "dplyr", "tidyr", "stringr",
+  "igraph", "visNetwork", "ggplot2", "knitr", "kableExtra", "glue"
+))

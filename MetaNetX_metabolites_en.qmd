@@ -1,0 +1,1140 @@
+---
+title: "Improving metabolite identification with MetaNetX"
+subtitle: "Workshop 18JS-RFMF · SIB Swiss Institute of Bioinformatics"
+author: "Florence Mehl"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Sommaire"
+    number-sections: true
+    theme: flatly
+    highlight-style: github
+    df-print: paged
+    code-fold: true          
+    code-tools: true         
+    embed-resources: true    
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: true                
+---
+
+```{r setup}
+#| include: false
+library(sparqlr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(igraph)
+library(visNetwork)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(glue)
+
+# Helper : converts MNX identifiers into HTML links to metanetx.org
+mnx_link <- function(id, color = "#2C7BB6") {
+  id <- as.character(id)
+  out <- id
+  has_mnx <- !is.na(id) & grepl("MNX[MR]", id)
+  bare <- ifelse(has_mnx,
+                 sub("^.*?(MNX[MR][A-Za-z0-9]+).*$", "\\1", id),
+                 id)
+  is_chem <- has_mnx & substr(bare, 1, 4) == "MNXM"
+  is_rxn  <- has_mnx & substr(bare, 1, 4) == "MNXR"
+  fmt <- paste0(
+    '<a href="https://www.metanetx.org/%s/%s" target="_blank" ',
+    'style="color:', color, ';font-weight:bold;">%s</a>'
+  )
+  out[is_chem] <- sprintf(fmt, "chem_info", bare[is_chem], bare[is_chem])
+  out[is_rxn]  <- sprintf(fmt, "equa_info", bare[is_rxn],  bare[is_rxn])
+  out
+}
+```
+
+::: {.callout-note}
+## How to use this document
+
+This document is **pre-rendered**: all SPARQL queries have already been executed.
+
+- Code is collapsed by default  
+- Use the **</> Code** button to expand  
+- Reflection questions are highlighted  
+
+
+If you want to **run the code**, install R packages once:
+
+```r
+install.packages(c("sparqlr","readxl","dplyr","tidyr","stringr",
+                   "igraph","visNetwork","ggplot2","knitr","kableExtra"))
+```
+:::
+
+---
+
+# Introduction
+
+## Why correctly identify metabolites?
+
+In metabolomics, the same compound can have dozens of different identifiers depending on the database used. Without reconciliation, two analyses of the same metabolite may appear to involve different entities — and vice versa.
+
+etaNetX aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK**, and groups them into **sets** based on :
+
+1. Chemical structure (MOL, SMILES, InChI)
+2. Reaction context
+3. Cross-references
+4. Names
+
+
+Each set receives a unique `MNXM` identifier. This identifier is useful for curation purposes but **is NOT stable across MetaNetX versions and should not be used as a persistent identifier**. 
+Relationships between sets are modeled with `mnx:chemIsom`: a generic entity (e.g., *alanine*, without stereochemistry) oints to its specific isomers (e.g., *L-alanine*, *D-alanine*).
+
+---
+
+# Exercise 1 — ID Mapper : retrieving cross-database identifiers {#ex1}
+
+## Context
+
+You are given a list of identifiers from **different databases**, all supposed to represent *alanine* in different forms.
+The goal is to submit them to MetaNetX and observe how they are grouped. Use MetNetX ID-mapper available at https://rdf.metanetx.org/map/ids.
+
+## Input identifiers
+
+```{r ex1-ids}
+# identifiers list
+
+input_ids_ex1 <- c(
+  "chebi:16449",       
+  "chebi:32439",      
+  "chebi:66916",       
+  "chebi:143534",      
+  "chebi:132498",      
+  "chebi:32440",       
+  "hmdb:HMDB0062251",  
+  "keggC:C01401"       
+)
+
+cat(paste(input_ids_ex1, collapse = "\n"))
+```
+
+## SPARQL query — mapping to MetaNetX
+
+Strategy: a single query using a VALUES block to inject all identifiers. MetaNetX stores cross-references via `mnx:chemXref`, where the external identifier is carried in its `rdfs:label`.
+This query can also be run in the SPARQL editor available at: https://rdf.metanetx.org/
+
+```{r ex1-query}
+MNX_ENDPOINT <- "https://rdf.metanetx.org/sparql"
+
+query_ex1 <- '
+PREFIX mnx:  <https://rdf.metanetx.org/schema/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?query_id ?mnx_id ?name ?inchikey
+WHERE {
+  VALUES ?query_id {
+    "chebi:16449"
+    "chebi:32439"
+    "chebi:66916"
+    "chebi:143534"
+    "chebi:132498"
+    "chebi:32440"
+    "hmdb:HMDB0062251"
+    "keggC:C01401"
+  }
+
+  ?mnx_chem mnx:chemXref ?xref .
+  ?xref     rdfs:label   ?query_id .
+  ?mnx_chem rdfs:label   ?mnx_id .
+
+  OPTIONAL { ?mnx_chem rdfs:comment  ?name     . }
+  OPTIONAL { ?mnx_chem mnx:inchikey  ?inchikey . }
+}
+ORDER BY ?mnx_id
+'
+
+results_ex1 <- sparql_select(endpoint = MNX_ENDPOINT, query = query_ex1)
+```
+
+## Results
+
+```{r ex1-results}
+results_ex1 %>%
+  mutate(mnx_id = sub(".*[/#]", "", mnx_id)) %>%
+  select(query_id, mnx_id, name, inchikey) %>%
+  mutate(mnx_id = mnx_link(mnx_id)) %>%
+  kable(caption = "Tableau 1 — Mapping des identifiants vers MetaNetX", format = "html", escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+```{r ex1-summary}
+res1 <- results_ex1 %>%
+  mutate(mnx_id = sub(".*[/#]", "", mnx_id))
+
+cat("Identifiants soumis     :", length(input_ids_ex1), "\n")
+cat("Entités MNX distinctes  :", n_distinct(res1$mnx_id), "\n")
+```
+
+::: {.callout-tip}
+## Reflection questions — Exercise 1
+
+1.  How many distinct MetaNetX entities correspond to the 8 identifiers?
+2.  Several identifiers map to the **same MNX set** — which ones? What does this imply for a dataset that contains these identifiers as separate features?
+3.  Are the identifiers `chebi:66916` (*alanine zwitterion*) and `chebi:16449` (*alanine*) in the same set? Why or why not?
+
+:::
+
+---
+
+# Exercise 2 — Isomer relationships: from generic to specific {#ex2}
+
+## Context
+
+MetaNetX distinguishes **generic entities** (e.g., *alanine* without stereochemistry) from **stereochemically specific entities** (*L-alanine*, *D-alanine*). The `mnx:chemIsom` relationship links a generic set to its specific isomers.
+
+> **Why is this important for data quality?**  
+> If your dataset contains both generic *alanine* and *L-alanine* in separate columns, you potentially introduce redundancy — but they are not exactly the same compound either. It is essential to know which one was actually measured.
+
+## Input identifiers — complete alanine family
+
+```{r ex2-ids}
+# Liste complète : tous les identifiants de la famille alanine
+# (alanine plate + L-alanine + D-alanine)
+input_ids_ex2 <- c(
+  # alanine plate (générique)
+  "chebi:16449", "chebi:32439", "chebi:66916", "chebi:143534",
+  "chebi:132498", "chebi:32440", "hmdb:HMDB0062251", "keggC:C01401",
+  # L-alanine
+  "chebi:16977", "chebi:57972", "chebi:229589", "chebi:32431",
+  "chebi:76050", "chebi:32432", "keggD:D00012", "keggC:C00041",
+  "biggM:ala__L", "hmdb:HMDB0000161", "sabiorkM:67", "seedM:cpd00035",
+  "vmhM:ala_L", "metacycM:L-ALPHA-ALANINE",
+  # D-alanine
+  "chebi:57416", "chebi:32435", "chebi:15570", "chebi:32436",
+  "biggM:ala__D", "hmdb:HMDB0001310", "sabiorkM:1940",
+  "keggC:C00133", "seedM:cpd00117", "vmhM:ala_D", "metacycM:D-ALANINE"
+)
+
+cat(paste(input_ids_ex2, collapse = "\n"))
+```
+
+## SPARQL query with isomer relationship
+
+```{r ex2-query}
+# Pure SPARQL query — can be used directly in MetaNetX SPARQL editor
+# (https://rdf.metanetx.org/).
+query_ex2 <- '
+PREFIX mnx:  <https://rdf.metanetx.org/schema/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT
+  ?query_id ?mnx_chem ?mnx_id ?name
+  ?chem_Isom ?chem_Isom_id ?chem_Isom_name
+  ?inchikey
+WHERE {
+  VALUES ?query_id {
+    # alanine plate (générique)
+    "chebi:16449" "chebi:32439" "chebi:66916" "chebi:143534"
+    "chebi:132498" "chebi:32440" "hmdb:HMDB0062251" "keggC:C01401"
+    # L-alanine
+    "chebi:16977" "chebi:57972" "chebi:229589" "chebi:32431"
+    "chebi:76050" "chebi:32432" "keggD:D00012" "keggC:C00041"
+    "biggM:ala__L" "hmdb:HMDB0000161" "sabiorkM:67" "seedM:cpd00035"
+    "vmhM:ala_L" "metacycM:L-ALPHA-ALANINE"
+    # D-alanine
+    "chebi:57416" "chebi:32435" "chebi:15570" "chebi:32436"
+    "biggM:ala__D" "hmdb:HMDB0001310" "sabiorkM:1940"
+    "keggC:C00133" "seedM:cpd00117" "vmhM:ala_D" "metacycM:D-ALANINE"
+  }
+
+  ?mnx_chem mnx:chemXref ?xref .
+  ?xref     rdfs:label   ?query_id .
+  ?mnx_chem rdfs:label   ?mnx_id .
+
+  OPTIONAL { ?mnx_chem rdfs:comment  ?name     . }
+  OPTIONAL { ?mnx_chem mnx:inchikey  ?inchikey . }
+
+  OPTIONAL {
+    ?mnx_chem   mnx:chemIsom  ?chem_Isom .
+    ?chem_Isom  rdfs:label    ?chem_Isom_id .
+    OPTIONAL { ?chem_Isom rdfs:comment ?chem_Isom_name . }
+  }
+}
+ORDER BY ?query_id
+'
+
+results_ex2_raw <- sparql_select(endpoint = MNX_ENDPOINT, query = query_ex2)
+```
+
+## Results cleaning
+
+```{r ex2-clean}
+results_ex2 <- results_ex2_raw %>%
+  mutate(
+    mnx_id       = sub(".*[/#]", "", mnx_id),
+    chem_Isom_id = sub(".*[/#]", "", chem_Isom_id)
+  ) %>%
+  select(query_id, mnx_id, name, chem_Isom_id, chem_Isom_name, inchikey)
+
+results_ex2 %>%
+  mutate(
+    mnx_id       = mnx_link(mnx_id),
+    chem_Isom_id = mnx_link(chem_Isom_id, color = "#E07B39")
+  ) %>%
+  kable(caption = "Tableau 2 — Mapping complet avec relations isomères", format = "html", escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Summary : une line per MNX entity
+
+```{r ex2-summary}
+summary_ex2 <- results_ex2 %>%
+  group_by(mnx_id, name, chem_Isom_id, chem_Isom_name) %>%
+  summarise(
+    n_input_ids = n(),
+    input_ids   = paste(query_id, collapse = " · "),
+    .groups = "drop"
+  ) %>%
+  arrange(is.na(chem_Isom_id), mnx_id)
+
+cat("Distinct MNX entities           :", n_distinct(results_ex2$mnx_id), "\n")
+cat("Entities with specific isomer(s)  :",
+    sum(!is.na(summary_ex2$chem_Isom_id[!duplicated(summary_ex2$mnx_id)])), "\n")
+
+summary_ex2 %>%
+  mutate(
+    mnx_id       = mnx_link(mnx_id),
+    chem_Isom_id = mnx_link(chem_Isom_id, color = "#E07B39")
+  ) %>%
+  kable(caption = "Table 3 — One line per MNX entity (with input identifier)",
+        format = "html", escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Detection of duplicates
+
+```{r ex2-duplicates}
+dupes <- results_ex2 %>%
+  group_by(mnx_id) %>%
+  summarise(
+    n_ids     = n_distinct(query_id),
+    query_ids = paste(unique(query_id), collapse = " · "),
+    name      = first(name),
+    .groups   = "drop"
+  ) %>%
+  filter(n_ids > 1) %>%
+  arrange(desc(n_ids))
+
+if (nrow(dupes) > 0) {
+  dupes %>%
+    mutate(mnx_id = mnx_link(mnx_id)) %>%
+    kable(caption = "⚠️ Multiple identifiers mapping to the same MNX entity",
+          format = "html", escape = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    row_spec(0, background = "#FFF3CD")
+} else {
+  cat("No duplicate detected.\n")
+}
+```
+
+## Detection of generic / specific collisions
+
+::: {.callout-warning}
+
+## Data quality issue
+
+If your dataset contains both a **generic** entity (which has isomers) and one of its **specific isomers**, you are mixing different levels of precision. MetaNetX allows this to be detected automatically.
+
+:::
+
+```{r ex2-collision, results='asis'}
+# Generic entities in our list (those that have a specific isomer)
+generic_in_list <- results_ex2 %>%
+  filter(!is.na(chem_Isom_id)) %>%
+  distinct(mnx_id, name, chem_Isom_id, chem_Isom_name)
+
+# Are the specific isomers also present in our list?
+specific_in_list <- results_ex2 %>%
+  filter(mnx_id %in% generic_in_list$chem_Isom_id) %>%
+  distinct(mnx_id, name, query_id)
+
+if (nrow(specific_in_list) > 0) {
+  cat("⚠️ **Collision detected**: generic entities AND their specific isomers are simultaneously present in the input list.\n\n")
+
+  generic_in_list %>%
+    distinct(mnx_id, name, chem_Isom_id, chem_Isom_name) %>%
+    mutate(
+      mnx_id       = mnx_link(mnx_id,       color = "#E07B39"),
+      chem_Isom_id = mnx_link(chem_Isom_id, color = "#3A86FF")
+    ) %>%
+    kable(caption = "⚠️ Generic entities in the list that have (at least) one specific isomer also present",
+          format = "html", escape = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    row_spec(0, background = "#FFF3CD") %>%
+    print()
+
+  specific_in_list %>%
+    mutate(mnx_id = mnx_link(mnx_id, color = "#3A86FF")) %>%
+    kable(caption = "⚠️ Specific isomers also present in the list",
+          format = "html", escape = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    row_spec(0, background = "#FFF3CD") %>%
+    print()
+} else {
+  cat("No generic/specific collision detected.\n")
+}
+```
+
+## Isomeric relationships graph
+
+```{r ex2-graph, fig.cap="**Isomer relationships between alanine entities. Arrows follow `mnx:chemIsom`: generic entity → specific isomer.**"}
+# Edges (generic → specific)
+edges <- results_ex2 %>%
+  filter(!is.na(chem_Isom_id)) %>%
+  distinct(from = mnx_id, to = chem_Isom_id)
+
+# Nodes (with name and type)
+nodes <- tibble(
+  mnx_id = unique(c(edges$from, edges$to, results_ex2$mnx_id))
+) %>%
+  left_join(results_ex2 %>% distinct(mnx_id, name), by = "mnx_id") %>%
+  mutate(
+    name = coalesce(name,
+                    results_ex2$chem_Isom_name[match(mnx_id, results_ex2$chem_Isom_id)]),
+    type = case_when(
+      mnx_id %in% edges$from & !mnx_id %in% edges$to ~ "Generic",
+      mnx_id %in% edges$to                            ~ "Specific isomer",
+      TRUE                                            ~ "Isomer without relationship"
+    )
+  )
+
+# igraph building for layout
+g <- graph_from_data_frame(
+  d        = edges[, c("from", "to")],
+  vertices = nodes,
+  directed = TRUE
+)
+
+# Conversion to visNetwork format
+nodes_vn <- nodes %>%
+  transmute(
+    id    = mnx_id,
+    label = mnx_id,
+    title = paste0(
+      "<b>", mnx_id, "</b><br/>",
+      ifelse(is.na(name) | name == "", "<i>(nom absent)</i>", name),
+      "<br/><a href='https://www.metanetx.org/chem_info/", mnx_id, "' ",
+      "target='_blank'>See in MetaNetX</a>"
+    ),
+    group = type
+  )
+
+edges_vn <- edges %>%
+  transmute(from = from, to = to, arrows = "to")
+
+visNetwork(nodes_vn, edges_vn, height = "550px", width = "100%",
+           main = list(text  = "Isomeric relationships — alanine family",
+                       style = "font-weight:bold;font-size:15px;"),
+           submain = "mnx:chemIsom (generic → specific isomer)") %>%
+  visIgraphLayout(layout = "layout_with_sugiyama", physics = FALSE, smooth = FALSE) %>%
+  visEdges(color = list(color = "#888888", highlight = "#E07B39"), width = 1.4) %>%
+  visGroups(groupname = "Generic",
+            color = list(background = "#E07B39", border = "#A85B23"),
+            shape = "dot", size = 22) %>%
+  visGroups(groupname = "Specific isomer",
+            color = list(background = "#3A86FF", border = "#1F5BB8"),
+            shape = "dot", size = 16) %>%
+  visGroups(groupname = "Isomer without relationship",
+            color = list(background = "#AAAAAA", border = "#777777"),
+            shape = "dot", size = 12) %>%
+  visNodes(font = list(size = 14, face = "without")) %>%
+  visOptions(highlightNearest = list(enabled = TRUE, degree = 2, hover = TRUE),
+             nodesIdSelection = FALSE) %>%
+  visLegend(position = "right", main = "Entity type", width = 0.18) %>%
+  visInteraction(tooltipDelay = 100, navigationButtons = TRUE)
+```
+
+## A more complex case: the glucose 6-phosphate family
+
+**Glucose 6-phosphate** (G6P) is a key metabolite in glycolysis. In standard LC-MS experiments, the α and β anomers are generally **not distinguished** — the measurement therefore corresponds to a "generic" signal that must be annotated cautiously. MetaNetX represents this family with multiple levels of stereochemistry **and** multiple protonation states, resulting in a graph that is significantly denser than that of alanine.
+
+### Input identifiers — G6P family
+
+```{r ex2-g6p-ids}
+input_ids_g6p <- c(
+  "chebi:61548",
+  "chebi:58225",
+  "chebi:178383",
+  "chebi:47944",
+  "chebi:60332",
+  "chebi:61567",
+  "chebi:49728",
+  "chebi:41076",
+  "keggC:C02962",
+  "chebi:58247"
+)
+
+cat(paste(input_ids_g6p, collapse = "\n"))
+```
+
+### Requête SPARQL et récupération des relations
+
+```{r ex2-g6p-query}
+# Pure SPARQL queries — can be used directly in MetaNetX SPARQL editor
+# (https://rdf.metanetx.org/).
+
+# Query 1: mapping submitted IDs to MetaNetX (1 level of chemIsom)
+query_g6p <- '
+PREFIX mnx:  <https://rdf.metanetx.org/schema/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT
+  ?query_id ?mnx_id ?name
+  ?chem_Isom_id ?chem_Isom_name
+WHERE {
+  VALUES ?query_id {
+    "chebi:61548"
+    "chebi:58225"
+    "chebi:178383"
+    "chebi:47944"
+    "chebi:60332"
+    "chebi:61567"
+    "chebi:49728"
+    "chebi:41076"
+    "keggC:C02962"
+    "chebi:58247"
+  }
+
+  ?mnx_chem mnx:chemXref ?xref .
+  ?xref     rdfs:label   ?query_id .
+  ?mnx_chem rdfs:label   ?mnx_id .
+
+  OPTIONAL { ?mnx_chem rdfs:comment  ?name     . }
+
+  OPTIONAL {
+    ?mnx_chem   mnx:chemIsom  ?chem_Isom .
+    ?chem_Isom  rdfs:label    ?chem_Isom_id .
+    OPTIONAL { ?chem_Isom rdfs:comment ?chem_Isom_name . }
+  }
+}
+ORDER BY ?query_id
+'
+
+results_g6p <- sparql_select(endpoint = MNX_ENDPOINT, query = query_g6p) %>%
+  mutate(
+    mnx_id       = sub(".*[/#]", "", mnx_id),
+    chem_Isom_id = sub(".*[/#]", "", chem_Isom_id)
+  )
+
+# Query 2: TRANSITIVE and BIDIRECTIONAL extension via chemIsom
+# to retrieve the full graph (all parents, children, siblings, and
+# intermediate entities connected to the submitted IDs), as shown on:
+# https://www.metanetx.org/chem_info/MNXM<id>
+query_g6p_graph <- '
+PREFIX mnx:  <https://rdf.metanetx.org/schema/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT
+  ?from_id ?from_name ?to_id ?to_name
+WHERE {
+  VALUES ?query_id {
+    "chebi:61548"
+    "chebi:58225"
+    "chebi:178383"
+    "chebi:47944"
+    "chebi:60332"
+    "chebi:61567"
+    "chebi:49728"
+    "chebi:41076"
+    "keggC:C02962"
+    "chebi:58247"
+  }
+
+  # 1. Anchoring: MNX entities corresponding to the submitted IDs
+  ?anchor mnx:chemXref ?xref .
+  ?xref   rdfs:label   ?query_id .
+
+  # 2. Transitive extension in BOTH directions (upstream + downstream)
+  ?anchor (mnx:chemIsom|^mnx:chemIsom)* ?node .
+
+  # 3. Retrieve all chemIsom edges outgoing from the reached nodes
+  ?node mnx:chemIsom ?target .
+
+  ?node   rdfs:label ?from_id .
+  ?target rdfs:label ?to_id .
+
+  OPTIONAL { ?node   rdfs:comment ?from_name . }
+  OPTIONAL { ?target rdfs:comment ?to_name   . }
+}
+ORDER BY ?from_id ?to_id
+'
+
+results_g6p_graph <- sparql_select(endpoint = MNX_ENDPOINT, query = query_g6p_graph) %>%
+  mutate(
+    from_id = sub(".*[/#]", "", from_id),
+    to_id   = sub(".*[/#]", "", to_id)
+  )
+```
+
+### Identifiers mapping to MetaNetX
+
+```{r ex2-g6p-mapping}
+results_g6p %>%
+  select(query_id, mnx_id, name, chem_Isom_id, chem_Isom_name) %>%
+  mutate(
+    mnx_id       = mnx_link(mnx_id),
+    chem_Isom_id = mnx_link(chem_Isom_id, color = "#E07B39")
+  ) %>%
+  kable(caption = "Table — Mapping G6P : submitted identifiers and isomer relationships",
+        format = "html", escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+### Synthèse numérique
+
+```{r ex2-g6p-stats}
+n_pairs_g6p <- nrow(distinct(filter(results_g6p, !is.na(chem_Isom_id)),
+                             mnx_id, chem_Isom_id))
+
+tibble(
+  Métrique = c(
+    "Submitted identifiers",
+    "Identifiers recognized in MetaNetX",
+    "Distinct MNX entities",
+    "Parent–child pairs (chemIsom)"
+  ),
+  Valeur = c(
+    length(input_ids_g6p),
+    n_distinct(results_g6p$query_id),
+    n_distinct(results_g6p$mnx_id),
+    n_pairs_g6p
+  )
+) %>%
+  kable(caption = "Table — G6P mapping statistics",
+        format = "html", escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE)
+```
+
+### Graphe des relations stéréochimiques
+
+```{r ex2-g6p-graph, fig.width=11, fig.height=7, fig.cap="Isomer relationships within the glucose 6-phosphate family (complete connected component, see also <https://www.metanetx.org/chem_info/MNXM1364111>). Multiple levels coexist: anomers (α / β) and protonation states."}
+
+# Edges
+edges_g6p <- results_g6p_graph %>%
+  distinct(from = from_id, to = to_id)
+
+# Nodes (consoidated names)
+node_names_g6p <- bind_rows(
+  results_g6p_graph %>% select(mnx_id = from_id, name = from_name),
+  results_g6p_graph %>% select(mnx_id = to_id, name = to_name)
+) %>%
+  filter(!is.na(mnx_id)) %>%
+  group_by(mnx_id) %>%
+  summarise(name = first(na.omit(name)), .groups = "drop")
+
+# Nodes with types 
+anchor_mnx_g6p <- unique(results_g6p$mnx_id)
+
+nodes_g6p <- node_names_g6p %>%
+  mutate(
+    type = case_when(
+      mnx_id %in% edges_g6p$from & !mnx_id %in% edges_g6p$to ~ "Generic",
+      mnx_id %in% edges_g6p$to & !mnx_id %in% edges_g6p$from ~ "Specific isomer",
+      mnx_id %in% anchor_mnx_g6p ~ "Submitted identifiers",
+      TRUE ~ "Intermediary"
+    )
+  )
+
+# Graphe igraph (pour layout)
+g_g6p <- graph_from_data_frame(
+  d = edges_g6p[, c("from", "to")],
+  vertices = nodes_g6p,
+  directed = TRUE
+)
+
+# Conversion visNetwork
+nodes_vn <- nodes_g6p %>%
+  transmute(
+    id = mnx_id,
+    label = mnx_id,
+    title = paste0(
+      "<b>", mnx_id, "</b><br/>",
+      ifelse(is.na(name) | name == "", "<i>(nom absent)</i>", name),
+      "<br/><a href='https://www.metanetx.org/chem_info/", mnx_id,
+      "' target='_blank'>See in MetaNetX</a>"
+    ),
+    group = type
+  )
+
+edges_vn <- edges_g6p %>%
+  transmute(from = from, to = to, arrows = "to")
+
+# Visualisation
+visNetwork(
+  nodes_vn, edges_vn,
+  height = "600px", width = "100%",
+  main = list(
+    text = "Stereochemical relationships — G6P family",
+    style = "font-weight:bold;font-size:15px;"
+  ),
+  submain = "mnx:chemIsom (generic → specific)"
+) %>%
+  visIgraphLayout(layout = "layout_with_sugiyama",
+                  physics = FALSE,
+                  smooth = FALSE) %>%
+  visEdges(color = list(color = "#888888", highlight = "#E07B39"),
+           width = 1.4, smooth=TRUE) %>%
+  visGroups(
+    groupname = "Generic",
+    color = list(background = "#E07B39", border = "#A85B23"),
+    shape = "dot", size = 22
+  ) %>%
+  visGroups(
+    groupname = "Intermediary",
+    color = list(background = "#7E3A93", border = "#5C2A6E"),
+    shape = "dot", size = 18
+  ) %>%
+  visGroups(
+    groupname = "Spécific isomer",
+    color = list(background = "#3A86FF", border = "#1F5BB8"),
+    shape = "dot", size = 16
+  ) %>%
+  visNodes(font = list(size = 14, face = "without")) %>%
+  visOptions(
+    highlightNearest = list(enabled = TRUE, degree = 2, hover = TRUE),
+    nodesIdSelection = FALSE
+  ) %>%
+  visLegend(position = "right", main = "Entity type", width = 0.2) %>%
+  visInteraction(tooltipDelay = 100, navigationButtons = TRUE)
+```
+
+::: {.callout-tip}
+## Reflection questions — Exercise 2
+
+1. How many distinct MNX entities are identified for the `r length(input_ids_ex2)` input identifiers from the **alanine** family?  
+2. Which entities are **generic** (orange) and which are **specific isomers** (blue)?  
+3. Looking at the alanine graph: is *alanine zwitterion* a generic or a specific entity?  
+4. In a metabolomics dataset, if you have one feature annotated as `chebi:16449` (alanine) and another as `keggC:C00041` (L-alanine), what issue does this create?  
+5. The **G6P** graph is much denser than the alanine graph — why? What do the multiple levels observed correspond to (anomers × protonation)?  
+6. In LC-MS without derivatization, a G6P signal is typically annotated as **generic** rather than as α-D-G6P or β-D-G6P. What is the consequence if the analyst defaults to using `keggC:C00668` (α) instead of the generic `keggC:C00092`?  
+
+:::
+
+---
+
+# Exercise 3 — Application to real data {#ex3}
+
+## Context
+
+You are provided with a metabolomics feature file (`Features_METABOLOMICS.xlsx`). It contains columns `HMDB`, `KEGG`, and `chebi_id`. The goal is to detect **4 types of data quality issues** commonly encountered in metabolomics:
+
+| Type | Problem | Example in the file |
+|------|--------|-------------------|
+| **1** | Invalid / malformed identifier → not mapped in MNX | `Glucose_bad_id` (`HMDB00122`), `Pyruvate_typo` (`HMDB000243` + non-existent ChEBI) |
+| **2** | Exact duplicate: same MNX entity, different annotation | `Ala` vs `Ala_2` |
+| **3** | HMDB ≠ KEGG → two different MNX entities (KEGG too generic) | `lysoPC a C16:0`, `C16:1`… share `C04230` |
+| **4** | Generic / specific (parent–child relationship via `mnx:chemIsom+`) | `Carnitine_DL` vs `C0` (L-Carnitine) |
+
+## Data loading
+
+```{r ex3-load}
+features <- read_xlsx("Features_METABOLOMICS.xlsx", sheet = "in") %>%
+  rename_with(~ str_replace_all(., "[^a-zA-Z0-9_]", "_")) %>%
+  mutate(
+    id_hmdb  = ifelse(!is.na(HMDB)     & HMDB     != "NA",
+                      paste0("hmdb:", HMDB),     NA_character_),
+    id_kegg  = ifelse(!is.na(KEGG)     & KEGG     != "NA",
+                      paste0("keggC:", KEGG),    NA_character_),
+    id_chebi = ifelse(!is.na(chebi_id) & chebi_id != "NA",
+                      paste0("chebi:", chebi_id), NA_character_)
+  )
+
+cat("Features in file :", nrow(features), "\n")
+cat("With HMDB   :", sum(!is.na(features$id_hmdb)),  "\n")
+cat("With KEGG   :", sum(!is.na(features$id_kegg)),  "\n")
+cat("With ChEBI  :", sum(!is.na(features$id_chebi)), "\n")
+
+features %>%
+  select(Original_name, short_name, full_annotation_biocrates, id_hmdb, id_kegg, id_chebi) %>%
+  head(10) %>%
+  kable(caption = "Table 4 — Preview of features (10 first rows)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                font_size = 12)
+```
+
+## Mapping SPARQL query
+
+```{r ex3-query}
+all_ids <- c(
+  features$id_hmdb[!is.na(features$id_hmdb)],
+  features$id_kegg[!is.na(features$id_kegg)],
+  features$id_chebi[!is.na(features$id_chebi)]
+) %>% unique()
+
+cat("Unique identifiers to map :", length(all_ids), "\n")
+
+values_block_ex4 <- paste0('    "', all_ids, '"', collapse = "\n")
+
+query_ex4 <- glue::glue('
+PREFIX mnx:  <https://rdf.metanetx.org/schema/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?query_id ?mnx_id ?name ?inchikey
+WHERE {{
+  VALUES ?query_id {{
+{values_block_ex4}
+  }}
+  ?mnx_chem mnx:chemXref ?xref .
+  ?xref     rdfs:label   ?query_id .
+  ?mnx_chem rdfs:label   ?mnx_id .
+  OPTIONAL {{ ?mnx_chem rdfs:comment ?name     . }}
+  OPTIONAL {{ ?mnx_chem mnx:inchikey ?inchikey . }}
+}}
+')
+
+mapping_ex4 <- sparql_select(endpoint = MNX_ENDPOINT, query = query_ex4) %>%
+  mutate(mnx_id = sub(".*[/#]", "", mnx_id))
+
+cat("Successfully mapped identifiers :", n_distinct(mapping_ex4$query_id), "/", length(all_ids), "\n")
+cat("No mapped (TYPE 1 — invalid IDs) :",
+    length(all_ids) - n_distinct(mapping_ex4$query_id), "\n")
+```
+
+## Integration in features table
+
+```{r ex3-join}
+features_mapped <- features %>%
+  left_join(
+    mapping_ex4 %>% select(id_hmdb = query_id, mnx_hmdb = mnx_id, name_hmdb = name),
+    by = "id_hmdb"
+  ) %>%
+  left_join(
+    mapping_ex4 %>% select(id_kegg = query_id, mnx_kegg = mnx_id, name_kegg = name),
+    by = "id_kegg"
+  ) %>%
+  left_join(
+    mapping_ex4 %>% select(id_chebi = query_id, mnx_chebi = mnx_id, name_chebi = name),
+    by = "id_chebi"
+  ) %>%
+  mutate(mnx_consensus = coalesce(mnx_hmdb, mnx_kegg, mnx_chebi))
+```
+
+---
+
+## TYPE 1 — Invalid identifiers (not mapped in MetaNetX)
+
+::: {.callout-warning}
+## Data quality issue — Type 1
+
+A **malformed identifier** (incorrect number of digits, wrong prefix, non-existent ID) will not match any entry in MetaNetX. This is the simplest issue to detect, and also the easiest to fix.
+:::
+
+```{r ex3-type1}
+# Features with at least one provided ID but no MNX mapping obtained
+type1 <- features_mapped %>%
+  filter(
+    (!is.na(id_hmdb) | !is.na(id_kegg) | !is.na(id_chebi)),
+    is.na(mnx_consensus)
+  ) %>%
+  select(Original_name, full_annotation_biocrates, id_hmdb, id_kegg, id_chebi)
+
+cat("TYPE 1 — Features with IDs but not mapped :", nrow(type1), "\n\n")
+
+if (nrow(type1) > 0) {
+  type1 %>%
+    kable(caption = "⚠️ Table 5 — Invalid identifiers or not in MetaNetX") %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    column_spec(c(3,4,5), color = "#E41A1C") %>%
+    row_spec(0, background = "#F8D7DA")
+}
+```
+
+---
+
+## TYPE 2 — Exact duplicates (same MNX entity, different names)
+
+::: {.callout-warning}
+## Data quality issue — Type 2
+
+Two features are considered **duplicates** if they share the same MNX identifier through any source (HMDB, KEGG, or ChEBI). This can occur when an internal database contains multiple entries for the same compound with slightly different names.
+:::
+
+```{r ex3-type2}
+type2 <- features_mapped %>%
+  filter(!is.na(mnx_consensus)) %>%
+  group_by(mnx_consensus) %>%
+  filter(n() > 1) %>%
+  select(Original_name, full_annotation_biocrates,
+         mnx_consensus, name_hmdb, id_hmdb, id_kegg, id_chebi) %>%
+  arrange(mnx_consensus) %>%
+  ungroup()
+
+cat("TYPE 2 — MNX entities with several features :", n_distinct(type2$mnx_consensus), "\n")
+cat("         Features                   :", nrow(type2), "\n\n")
+
+if (nrow(type2) > 0) {
+  type2 %>%
+    mutate(mnx_consensus = mnx_link(mnx_consensus)) %>%
+    kable(caption = "⚠️ Table 6 — Potential duplicated features (same MNX entity)",
+          format = "html", escape = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    row_spec(0, background = "#FFF3CD")
+}
+```
+
+---
+
+## TYPE 3 — Cross-database inconsistencies (distinct MNX entities)
+
+::: {.callout-warning}
+## Data quality issue — Type 3
+
+A feature is considered **inconsistent** if two identifiers from different databases (here HMDB and KEGG) map to **different** MNX entities. A common cause is that the KEGG identifier corresponds to a generic class (e.g., `C04230` = all lysophosphatidylcholines), while the HMDB entry is specific to a precise molecular species.
+:::
+
+```{r ex3-type3}
+type3 <- features_mapped %>%
+  filter(!is.na(mnx_hmdb) & !is.na(mnx_kegg), mnx_hmdb != mnx_kegg) %>%
+  select(Original_name, full_annotation_biocrates,
+         id_hmdb, mnx_hmdb, name_hmdb,
+         id_kegg, mnx_kegg, name_kegg)
+
+cat("Features with HMDB ET KEGG        :",
+    sum(!is.na(features_mapped$mnx_hmdb) & !is.na(features_mapped$mnx_kegg)), "\n")
+cat("TYPE 3 — Inconsistences HMDB ≠ KEGG :", nrow(type3), "\n\n")
+
+if (nrow(type3) > 0) {
+  type3 %>%
+    mutate(
+      mnx_hmdb = mnx_link(mnx_hmdb),
+      mnx_kegg = mnx_link(mnx_kegg)
+    ) %>%
+    kable(caption = "⚠️ Table 7 — Inconsistent features between HMDB and KEGG",
+          format = "html", escape = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    row_spec(0, background = "#F8D7DA")
+}
+```
+
+---
+
+## TYPE 4 — Parent–child relationships (generic / specific via `mnx:chemIsom+`)
+
+::: {.callout-warning}
+## Data quality issue — Type 4
+
+The most subtle issue: two features may map to **distinct MNX entities** (i.e., not direct duplicates), but one is the **generic parent** of the other through the `mnx:chemIsom+` relationship. Typical examples include *DL-carnitine* (generic) vs *L-carnitine* (specific), and *DL-leucine* vs *L-leucine*.
+
+The query uses `mnx:chemIsom+` (a transitive path) to also detect relationships that span multiple levels of depth.
+:::
+
+```{r ex3-type4}
+# Collect all raw identifiers (HMDB, KEGG, ChEBI) present in the dataset,
+# to use them as chemXref anchors in the SPARQL query
+all_ids_in_dataset <- c(
+  features_mapped$id_hmdb[!is.na(features_mapped$id_hmdb)],
+  features_mapped$id_kegg[!is.na(features_mapped$id_kegg)],
+  features_mapped$id_chebi[!is.na(features_mapped$id_chebi)]
+) %>% unique()
+
+values_xref <- paste0('    "', all_ids_in_dataset, '"', collapse = "\n")
+
+# SPARQL query: detect (parent, child) pairs where both are present in the dataset
+# Recommended pattern: use chemXref to anchor MNX entities,
+# then use mnx:chemIsom+ (transitive path) for the generic → specific relationship
+query_ex4_isom <- glue::glue('
+PREFIX mnx:  <https://rdf.metanetx.org/schema/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?parent_id ?parent_name ?child_id ?child_name
+WHERE {{
+  VALUES ?chem_parent {{
+{values_xref}
+  }}
+  VALUES ?chem_child {{
+{values_xref}
+  }}
+
+  
+  # Anchoring MNX entities via their cross-references
+  ?mnxm_parent mnx:chemXref ?xref_parent .
+  ?xref_parent rdfs:label   ?chem_parent .
+  ?mnxm_child  mnx:chemXref ?xref_child .
+  ?xref_child  rdfs:label   ?chem_child .
+
+  # Parent → child relationship via chemIsom (transitive path, one or multiple levels)
+  ?mnxm_parent mnx:chemIsom+ ?mnxm_child .
+
+  # Retrieve MNX labels and names
+  ?mnxm_parent rdfs:label   ?parent_id .
+  ?mnxm_child  rdfs:label   ?child_id .
+
+  # Exclude pairs where parent and child are the same MNX entity
+  FILTER(?parent_id != ?child_id)
+
+  OPTIONAL {{ ?mnxm_parent rdfs:comment ?parent_name . }}
+  OPTIONAL {{ ?mnxm_child  rdfs:comment ?child_name  . }}
+}}
+ORDER BY ?parent_id
+')
+
+type4_raw <- sparql_select(endpoint = MNX_ENDPOINT, query = query_ex4_isom)
+
+# Defensive initialization: ensures that type4_raw is always a data frame
+# (sparql_select may return NULL if the query yields no results)
+if (is.null(type4_raw)) {
+  type4_raw <- data.frame(
+    parent_id = character(), parent_name = character(),
+    child_id  = character(), child_name  = character()
+  )
+}
+
+cat("TYPE 4 — Parent/child pairs detected in dataset :", nrow(type4_raw), "\n\n")
+
+if (nrow(type4_raw) > 0) {
+  feat_lookup <- features_mapped %>%
+    filter(!is.na(mnx_consensus)) %>%
+    distinct(mnx_consensus, Original_name, full_annotation_biocrates) %>%
+    group_by(mnx_consensus) %>%
+    summarise(
+      feature_names = paste(Original_name, collapse = " / "),
+      .groups = "drop"
+    )
+
+  type4_raw %>%
+    left_join(feat_lookup, by = c("parent_id" = "mnx_consensus")) %>%
+    rename(parent_features = feature_names) %>%
+    left_join(feat_lookup, by = c("child_id" = "mnx_consensus")) %>%
+    rename(child_features = feature_names) %>%
+    mutate(
+      parent_id = mnx_link(parent_id, color = "#E07B39"),
+      child_id  = mnx_link(child_id,  color = "#3A86FF")
+    ) %>%
+    select(
+      `MNX parent`  = parent_id,  `Nom parent`  = parent_name,  `Feature(s) parent`  = parent_features,
+      `MNX enfant`  = child_id,   `Nom enfant`  = child_name,   `Feature(s) enfant`  = child_features
+    ) %>%
+    kable(caption = "⚠️ Table 8 — Parent-child relationships detected via mnx:chemIsom+",
+          format = "html", escape = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    row_spec(0, background = "#E8F4F8")
+} else {
+  cat("No parent–child relationships detected between MNX entities in the dataset.\n")
+}
+```
+
+---
+
+## Visual summary — Quality status of all features
+
+```{r ex3-coverage}
+# Classify each feature according to the most severe detected issue
+features_status <- features_mapped %>%
+  mutate(
+    status = case_when(
+      # TYPE 1: ID provided but not mapped
+      (!is.na(id_hmdb) | !is.na(id_kegg) | !is.na(id_chebi)) & is.na(mnx_consensus)
+        ~ "TYPE 1 — Invalid / unmapped ID",
+      # TYPE 2: exact duplicate (same MNX as other features)
+      !is.na(mnx_consensus) & mnx_consensus %in% type2$mnx_consensus
+        ~ "TYPE 2 — Duplicate (same MNX entity)",
+      # TYPE 4: parent–child relationship (if type4_raw is not empty)
+      !is.na(mnx_consensus) & (
+        mnx_consensus %in% type4_raw$parent_id |
+        mnx_consensus %in% type4_raw$child_id
+      )
+        ~ "TYPE 4 — Generic/specific (chemIsom+)",
+      # TYPE 3: HMDB ≠ KEGG
+      !is.na(mnx_hmdb) & !is.na(mnx_kegg) & mnx_hmdb != mnx_kegg
+        ~ "TYPE 3 — HMDB ≠ KEGG (conflict)",
+      # No ID at all
+      is.na(id_hmdb) & is.na(id_kegg) & is.na(id_chebi)
+        ~ "No identifier",
+      # OK
+      !is.na(mnx_consensus)
+        ~ "✓ Consistent",
+      TRUE ~ "Unmapped"
+    )
+  )
+
+coverage_summary <- features_status %>% count(status) %>% arrange(desc(n))
+
+coverage_summary %>%
+  kable(caption = "Table 9 — Quality status by type of issue") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# Plot
+ggplot(coverage_summary, aes(x = reorder(status, n), y = n, fill = status)) +
+  geom_col(width = 0.65, show.legend = FALSE) +
+  geom_text(aes(label = n), hjust = -0.2, size = 4) +
+  scale_fill_manual(values = c(
+    "✓ Consistent"                            = "#4DAF4A",
+    "TYPE 1 — Invalid / unmapped ID"          = "#A65628",
+    "TYPE 2 — Duplicate (same MNX entity)"    = "#984EA3",
+    "TYPE 3 — HMDB ≠ KEGG (conflict)"         = "#E41A1C",
+    "TYPE 4 — Generic/specific (chemIsom+)"   = "#FF7F00",
+    "No identifier"                           = "#CCCCCC",
+    "Unmapped"                                = "#999999"
+  )) +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+  labs(
+    title    = "Feature quality status — 4 types of issues detectable with MetaNetX",
+    subtitle = paste0(nrow(features), " features in total"),
+    x = NULL, 
+    y = "Number of features",
+    caption = "Source: Features_METABOLOMICS.xlsx × MetaNetX SPARQL"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 11))
+```
+
+::: {.callout-tip}
+## Reflection questions — Exercise 3
+
+1. **TYPE 1** — `HMDB00122` is malformed. What is the correct identifier? How can this type of error be avoided when building an internal database?  
+2. **TYPE 2** — `Ala` and `Ala_2` map to the same MNX entity. How could this duplication bias a differential analysis if it is not detected?  
+3. **TYPE 3** — Several lysoPCs share the KEGG identifier `C04230`. Why does KEGG use a single identifier for all these species? Which database (HMDB or KEGG) is preferable for complex lipids?  
+4. **TYPE 4** — `Carnitine_DL` and `C0` (L-Carnitine) share the same KEGG identifier `C00487`. After mapping to MetaNetX, are they in the same MNX set or in sets linked by `chemIsom+`? What difference does this make for biological analysis?  
+:::
+
+---
+
+# Summary — Best practices for metabolite identification
+
+Based on the course slides (Florence Mehl / SIB) and the exercises:
+
+::: {.callout-important}
+## Recommendations for metabolite identification
+
+**1. Distinguish the metabolite (set) from the chemical compound (individual)**  
+A metabolite in a metabolic network is a *set* of molecules — it should not be confused with an individual chemical compound (e.g., a laboratory standard).
+
+**2. Use only identifiers where name and structure are consistent**  
+Check stereochemistry. Prefer databases that provide both.
+
+**3. Specify the context of validity**  
+An identifier is valid for a given analytical method, organism, and biofluid.
+
+**4. Define a reference identifier and rank by confidence**  
+Do not provide a bag of imprecise identifiers: a short, ordered list is better.
+
+**5. Do not use MNXM identifiers as stable identifiers**  
+They are not stable across releases. Use representative identifiers from source databases (ChEBI, HMDB…).
+
+**6. Never mix generic entities and specific isomers**  
+`chebi:16449` (alanine) ≠ `chebi:16977` (L-alanine) — even if they share a common MNX parent.
+:::
+
+---
+
+# Session information
+
+```{r session}
+sessionInfo()
+```
