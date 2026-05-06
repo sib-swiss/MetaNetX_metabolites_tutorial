@@ -14,11 +14,11 @@ The tutorial illustrates how to:
 This repository provides:
 
 ### Interactive tutorial (Quarto)
-- `MetaNetX_metabolites_en.qmd` — English version  
-- `MetaNetX_metabolites_fr.qmd` — French version  
+- [`MetaNetX_metabolites_en.qmd`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/MetaNetX_metabolites_en.qmd) — English version  
+- [`MetaNetX_metabolites_fr.qmd`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/MetaNetX_metabolites_fr.qmd) — French version  
 - Corresponding HTML outputs:
-  - `MetaNetX_metabolites_en.html`
-  - `MetaNetX_metabolites_fr.html`
+  - [`MetaNetX_metabolites_en.html`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/MetaNetX_metabolites_en.html) — English version  
+  - [`MetaNetX_metabolites_fr.html`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/MetaNetX_metabolites_fr.html) — French version  
 
 The tutorial is **self-contained** (pre-rendered):
 - all SPARQL queries are already executed
@@ -27,7 +27,7 @@ The tutorial is **self-contained** (pre-rendered):
 ---
 
 ### Dataset
-- `data/Features_METABOLOMICS.xlsx`
+- [`Features_METABOLOMICS.xlsx`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/Features_METABOLOMICS.xlsx)
 
 A real-world metabolomics dataset used to demonstrate:
 - identifier mapping
