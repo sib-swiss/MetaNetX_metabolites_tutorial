@@ -7,7 +7,6 @@ The tutorial illustrates how to:
 - explore **isomer relationships** (generic vs specific)
 - detect common **data quality issues** in metabolomics datasets
 
----
 
 ## Contents
 
@@ -24,7 +23,6 @@ The tutorial is **self-contained** (pre-rendered):
 - all SPARQL queries are already executed
 - results are embedded for easy exploration
 
----
 
 ### Dataset
 - [`Features_METABOLOMICS.xlsx`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/Features_METABOLOMICS.xlsx)
@@ -35,12 +33,10 @@ A real-world metabolomics dataset used to demonstrate:
 - cross-database inconsistencies
 - generic vs specific entity conflicts
 
----
 
 ### Slides
 - `slides/` — PDF slide deck used for the course
 
----
 
 ## How to use this tutorial
 
@@ -49,7 +45,6 @@ Open the HTML files:
 - no installation required
 - interactive tables and graphs included
 
----
 
 ### Option 2 — Run the code
 
