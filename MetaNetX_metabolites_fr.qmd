@@ -95,7 +95,7 @@ MetaNetX agrège les identifiants de **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaC
 3. Les références croisées
 4. Les noms
 
-Chaque ensemble reçoit un identifiant `MNXM` unique. Cet identifiant est à utiliser pour la curation d'identifiants mais **n'est pas considéré comme un identifiant stable à travers les versions de MetaNetX, il ne doit être utilisé que pour faire de la curation**. La relation entre ensembles est modélisée par `mnx:chemIsom` : un ensemble générique (ex. *alanine*, sans stéréochimie) pointe vers ses isomères spécifiques (ex. *L-alanine*, *D-alanine*).
+Chaque ensemble reçoit un identifiant `MNXM` unique. Cet identifiant est à utiliser pour la curation d'identifiants, mais **n'est pas considéré comme un identifiant stable à travers les versions de MetaNetX, il ne doit être utilisé que pour faire de la curation**. La relation entre ensembles est modélisée par `mnx:chemIsom` : un ensemble générique (ex. *alanine*, sans stéréochimie) pointe vers ses isomères spécifiques (ex. *L-alanine*, *D-alanine*).
 
 ---
 
@@ -103,7 +103,7 @@ Chaque ensemble reçoit un identifiant `MNXM` unique. Cet identifiant est à uti
 
 ## Contexte
 
-Vous disposez d'une liste d'identifiants provenant de **bases de données différentes**, tous censés désigner de l'*alanine* sous différentes formes. L'objectif est de les soumettre à MetaNetX pour voir comment ils sont regroupés. Pour cela vous pouvez utiliser l'ID-mapper disponible sur le site web https://rdf.metanetx.org/map/ids.
+Vous disposez d'une liste d'identifiants provenant de **bases de données différentes**, tous censés désigner de l'*alanine* sous différentes formes. L'objectif est de les soumettre à MetaNetX pour voir comment ils sont regroupés. Pour cela, vous pouvez utiliser l'ID-mapper disponible sur le site web https://www.metanetx.org/map/ids.
 
 ## Identifiants d'entrée
 
@@ -833,7 +833,7 @@ Un identifiant **mal formaté** (mauvais nombre de chiffres, préfixe incorrect,
 :::
 
 ```{r ex3-type1}
-# Features avec au moins un ID fourni mais aucun mapping MNX obtenu
+# Features avec au moins un ID fourni, mais aucun mapping MNX obtenu
 type1 <- features_mapped %>%
   filter(
     (!is.na(id_hmdb) | !is.na(id_kegg) | !is.na(id_chebi)),
@@ -841,7 +841,7 @@ type1 <- features_mapped %>%
   ) %>%
   select(Original_name, full_annotation_biocrates, id_hmdb, id_kegg, id_chebi)
 
-cat("TYPE 1 — Features avec IDs fournis mais non mappées :", nrow(type1), "\n\n")
+cat("TYPE 1 — Features avec IDs fournis, mais non mappées :", nrow(type1), "\n\n")
 
 if (nrow(type1) > 0) {
   type1 %>%
