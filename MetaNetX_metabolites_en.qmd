@@ -202,10 +202,10 @@ MetaNetX distinguishes **generic entities** (e.g., *alanine* without stereochemi
 ## Input identifiers — complete alanine family
 
 ```{r ex2-ids}
-# Liste complète : tous les identifiants de la famille alanine
-# (alanine plate + L-alanine + D-alanine)
+# Full list: all alanine family identifiers
+# (alanine no stereo + L-alanine + D-alanine)
 input_ids_ex2 <- c(
-  # alanine plate (générique)
+  # alanine no stereo (generic)
   "chebi:16449", "chebi:32439", "chebi:66916", "chebi:143534",
   "chebi:132498", "chebi:32440", "hmdb:HMDB0062251", "keggC:C01401",
   # L-alanine
@@ -237,7 +237,7 @@ SELECT DISTINCT
   ?inchikey
 WHERE {
   VALUES ?query_id {
-    # alanine plate (générique)
+    # alanine no stereo (generic)
     "chebi:16449" "chebi:32439" "chebi:66916" "chebi:143534"
     "chebi:132498" "chebi:32440" "hmdb:HMDB0062251" "keggC:C01401"
     # L-alanine
@@ -628,7 +628,7 @@ tibble(
 edges_g6p <- results_g6p_graph %>%
   distinct(from = from_id, to = to_id)
 
-# Nodes (consoidated names)
+# Nodes (consolidated names)
 node_names_g6p <- bind_rows(
   results_g6p_graph %>% select(mnx_id = from_id, name = from_name),
   results_g6p_graph %>% select(mnx_id = to_id, name = to_name)
@@ -650,7 +650,7 @@ nodes_g6p <- node_names_g6p %>%
     )
   )
 
-# Graphe igraph (pour layout)
+# Graph igraph (for layout)
 g_g6p <- graph_from_data_frame(
   d = edges_g6p[, c("from", "to")],
   vertices = nodes_g6p,
