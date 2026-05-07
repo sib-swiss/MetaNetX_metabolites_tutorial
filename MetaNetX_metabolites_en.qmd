@@ -83,7 +83,7 @@ install.packages(c("sparqlr","readxl","dplyr","tidyr","stringr",
 
 In metabolomics, the same compound can have dozens of different identifiers depending on the database used. Without reconciliation, two analyses of the same metabolite may appear to involve different entities — and vice versa.
 
-etaNetX aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK**, and groups them into **sets** based on :
+MetaNetX aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK**, and groups them into **sets** based on :
 
 1. Chemical structure (MOL, SMILES, InChI)
 2. Reaction context
@@ -92,7 +92,7 @@ etaNetX aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCy
 
 
 Each set receives a unique `MNXM` identifier. This identifier is useful for curation purposes but **is NOT stable across MetaNetX versions and should not be used as a persistent identifier**. 
-Relationships between sets are modeled with `mnx:chemIsom`: a generic entity (e.g., *alanine*, without stereochemistry) oints to its specific isomers (e.g., *L-alanine*, *D-alanine*).
+Relationships between sets are modeled with `mnx:chemIsom`: a generic entity (e.g., *alanine*, without stereochemistry) points to its specific isomers (e.g., *L-alanine*, *D-alanine*).
 
 ---
 
@@ -101,7 +101,7 @@ Relationships between sets are modeled with `mnx:chemIsom`: a generic entity (e.
 ## Context
 
 You are given a list of identifiers from **different databases**, all supposed to represent *alanine* in different forms.
-The goal is to submit them to MetaNetX and observe how they are grouped. Use MetNetX ID-mapper available at https://rdf.metanetx.org/map/ids.
+The goal is to submit them to MetaNetX and observe how they are grouped. Use MetaNetX ID-mapper available at https://www.metanetx.org/map/ids.
 
 ## Input identifiers
 
@@ -167,7 +167,7 @@ results_ex1 %>%
   mutate(mnx_id = sub(".*[/#]", "", mnx_id)) %>%
   select(query_id, mnx_id, name, inchikey) %>%
   mutate(mnx_id = mnx_link(mnx_id)) %>%
-  kable(caption = "Tableau 1 — Mapping des identifiants vers MetaNetX", format = "html", escape = FALSE) %>%
+  kable(caption = "Table 1 — Identifiers mapping to MetaNetX", format = "html", escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
@@ -175,8 +175,8 @@ results_ex1 %>%
 res1 <- results_ex1 %>%
   mutate(mnx_id = sub(".*[/#]", "", mnx_id))
 
-cat("Identifiants soumis     :", length(input_ids_ex1), "\n")
-cat("Entités MNX distinctes  :", n_distinct(res1$mnx_id), "\n")
+cat("Submitted identifiers  :", length(input_ids_ex1), "\n")
+cat("Distinct MNX entities  :", n_distinct(res1$mnx_id), "\n")
 ```
 
 ::: {.callout-tip}
@@ -285,11 +285,11 @@ results_ex2 %>%
     mnx_id       = mnx_link(mnx_id),
     chem_Isom_id = mnx_link(chem_Isom_id, color = "#E07B39")
   ) %>%
-  kable(caption = "Tableau 2 — Mapping complet avec relations isomères", format = "html", escape = FALSE) %>%
+  kable(caption = "Table 2 — Full mapping with isomeric relationships", format = "html", escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
-## Summary : une line per MNX entity
+## Summary : one line per MNX entity
 
 ```{r ex2-summary}
 summary_ex2 <- results_ex2 %>%
@@ -481,7 +481,7 @@ input_ids_g6p <- c(
 cat(paste(input_ids_g6p, collapse = "\n"))
 ```
 
-### Requête SPARQL et récupération des relations
+### SPARQL query and get relationships
 
 ```{r ex2-g6p-query}
 # Pure SPARQL queries — can be used directly in MetaNetX SPARQL editor
@@ -594,20 +594,20 @@ results_g6p %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
-### Synthèse numérique
+### Numerical synthesis
 
 ```{r ex2-g6p-stats}
 n_pairs_g6p <- nrow(distinct(filter(results_g6p, !is.na(chem_Isom_id)),
                              mnx_id, chem_Isom_id))
 
 tibble(
-  Métrique = c(
+  Metric = c(
     "Submitted identifiers",
     "Identifiers recognized in MetaNetX",
     "Distinct MNX entities",
     "Parent–child pairs (chemIsom)"
   ),
-  Valeur = c(
+  Value = c(
     length(input_ids_g6p),
     n_distinct(results_g6p$query_id),
     n_distinct(results_g6p$mnx_id),
@@ -620,7 +620,7 @@ tibble(
                 full_width = FALSE)
 ```
 
-### Graphe des relations stéréochimiques
+### Stereochemistry relationships graph
 
 ```{r ex2-g6p-graph, fig.width=11, fig.height=7, fig.cap="Isomer relationships within the glucose 6-phosphate family (complete connected component, see also <https://www.metanetx.org/chem_info/MNXM1364111>). Multiple levels coexist: anomers (α / β) and protonation states."}
 
@@ -801,7 +801,7 @@ mapping_ex4 <- sparql_select(endpoint = MNX_ENDPOINT, query = query_ex4) %>%
   mutate(mnx_id = sub(".*[/#]", "", mnx_id))
 
 cat("Successfully mapped identifiers :", n_distinct(mapping_ex4$query_id), "/", length(all_ids), "\n")
-cat("No mapped (TYPE 1 — invalid IDs) :",
+cat("Not mapped (TYPE 1 — invalid IDs) :",
     length(all_ids) - n_distinct(mapping_ex4$query_id), "\n")
 ```
 
@@ -906,7 +906,7 @@ type3 <- features_mapped %>%
 
 cat("Features with HMDB ET KEGG        :",
     sum(!is.na(features_mapped$mnx_hmdb) & !is.na(features_mapped$mnx_kegg)), "\n")
-cat("TYPE 3 — Inconsistences HMDB ≠ KEGG :", nrow(type3), "\n\n")
+cat("TYPE 3 — Inconsistencies HMDB ≠ KEGG :", nrow(type3), "\n\n")
 
 if (nrow(type3) > 0) {
   type3 %>%
