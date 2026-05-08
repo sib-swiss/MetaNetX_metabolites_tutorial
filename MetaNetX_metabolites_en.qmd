@@ -83,7 +83,7 @@ install.packages(c("sparqlr","readxl","dplyr","tidyr","stringr",
 
 In metabolomics, the same compound can have dozens of different identifiers depending on the database used. Without reconciliation, two analyses of the same metabolite may appear to involve different entities — and vice versa.
 
-MetaNetX aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK**, and groups them into **sets** based on :
+[MetaNetX](https://www.metanetx.org/) aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK**, and groups them into **sets** based on :
 
 1. Chemical structure (MOL, SMILES, InChI)
 2. Reaction context
@@ -101,7 +101,7 @@ Relationships between sets are modeled with `mnx:chemIsom`: a generic entity (e.
 ## Context
 
 You are given a list of identifiers from **different databases**, all supposed to represent *alanine* in different forms.
-The goal is to submit them to MetaNetX and observe how they are grouped. Use MetaNetX ID-mapper available at https://www.metanetx.org/map/ids.
+The goal is to submit them to MetaNetX and observe how they are grouped. Use MetaNetX ID-mapper available at [https://www.metanetx.org/map/ids](https://www.metanetx.org/map/ids).
 
 ## Input identifiers
 
@@ -125,7 +125,7 @@ cat(paste(input_ids_ex1, collapse = "\n"))
 ## SPARQL query — mapping to MetaNetX
 
 Strategy: a single query using a VALUES block to inject all identifiers. MetaNetX stores cross-references via `mnx:chemXref`, where the external identifier is carried in its `rdfs:label`.
-This query can also be run in the SPARQL editor available at: https://rdf.metanetx.org/
+This query can also be run in the SPARQL editor available at: [https://rdf.metanetx.org/](https://rdf.metanetx.org/)
 
 ```{r ex1-query}
 MNX_ENDPOINT <- "https://rdf.metanetx.org/sparql"

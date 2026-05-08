@@ -88,7 +88,7 @@ install.packages(c("sparqlr","readxl","dplyr","tidyr","stringr",
 
 En métabolomique, un même composé peut porter des dizaines d'identifiants différents selon la base de données utilisée. Sans réconciliation, deux analyses portant sur le même métabolite peuvent sembler porter sur des entités différentes — et vice versa.
 
-MetaNetX agrège les identifiants de **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK** et les regroupe en **ensembles (sets)** basés sur :
+[MetaNetX](https://www.metanetx.org/) agrège les identifiants de **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK** et les regroupe en **ensembles (sets)** basés sur :
 
 1. La structure chimique (MOL, SMILES, InChI)
 2. Le contexte réactionnel
@@ -103,7 +103,7 @@ Chaque ensemble reçoit un identifiant `MNXM` unique. Cet identifiant est à uti
 
 ## Contexte
 
-Vous disposez d'une liste d'identifiants provenant de **bases de données différentes**, tous censés désigner de l'*alanine* sous différentes formes. L'objectif est de les soumettre à MetaNetX pour voir comment ils sont regroupés. Pour cela, vous pouvez utiliser l'ID-mapper disponible sur le site web https://www.metanetx.org/map/ids.
+Vous disposez d'une liste d'identifiants provenant de **bases de données différentes**, tous censés désigner de l'*alanine* sous différentes formes. L'objectif est de les soumettre à MetaNetX pour voir comment ils sont regroupés. Pour cela, vous pouvez utiliser l'ID-mapper disponible sur le site web [https://www.metanetx.org/map/ids](https://www.metanetx.org/map/ids).
 
 ## Identifiants d'entrée
 
@@ -127,7 +127,7 @@ cat(paste(input_ids_ex1, collapse = "\n"))
 ## Requête SPARQL — mapping vers MetaNetX
 
 La stratégie : un seul appel avec un bloc `VALUES` qui injecte tous les identifiants. MetaNetX stocke les références croisées via `mnx:chemXref`, dont l'objet porte l'identifiant externe dans son `rdfs:label`.
-Cette requête peut aussi être soumise dans l'éditeur SPARQL disponible sur le site web https://rdf.metanetx.org/.
+Cette requête peut aussi être soumise dans l'éditeur SPARQL disponible sur le site web [https://rdf.metanetx.org/](https://rdf.metanetx.org/).
 
 ```{r ex1-query}
 MNX_ENDPOINT <- "https://rdf.metanetx.org/sparql"
