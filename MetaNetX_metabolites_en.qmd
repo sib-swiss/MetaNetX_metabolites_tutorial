@@ -731,7 +731,7 @@ visNetwork(
 
 ## Context
 
-You are provided with a metabolomics feature file (`Features_METABOLOMICS.xlsx`). It contains columns `HMDB`, `KEGG`, and `chebi_id`. The goal is to detect **4 types of data quality issues** commonly encountered in metabolomics:
+You are provided with a metabolomics feature file ([`Features_METABOLOMICS.xlsx`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/Features_METABOLOMICS.xlsx)). It contains columns `HMDB`, `KEGG`, and `chebi_id`. The goal is to detect **4 types of data quality issues** commonly encountered in metabolomics:
 
 | Type | Problem | Example in the file |
 |------|--------|-------------------|

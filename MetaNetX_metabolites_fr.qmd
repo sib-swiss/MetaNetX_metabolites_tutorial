@@ -729,7 +729,7 @@ visNetwork(
 
 ## Contexte
 
-Vous disposez d'un fichier de features métabolomiques (`Features_METABOLOMICS.xlsx`). Il contient des colonnes `HMDB`, `KEGG` et `chebi_id`. L'objectif est de détecter **4 types de problèmes de qualité** fréquents en métabolomique :
+Vous disposez d'un fichier de features métabolomiques ([`Features_METABOLOMICS.xlsx`](https://github.com/sib-swiss/MetaNetX_metabolites_tutorial/blob/master/Features_METABOLOMICS.xlsx)). Il contient des colonnes `HMDB`, `KEGG` et `chebi_id`. L'objectif est de détecter **4 types de problèmes de qualité** fréquents en métabolomique :
 
 | Type | Problème | Exemple dans le fichier |
 |------|----------|------------------------|
