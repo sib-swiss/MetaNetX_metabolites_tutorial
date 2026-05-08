@@ -1130,6 +1130,14 @@ Ils ne sont pas stables entre releases. Utiliser les représentants des ensemble
 
 ---
 
+# Ressources intéressantes
+
+1. [Introduction à SPARQL](https://sib-swiss.github.io/SPARQL_course/)
+
+2. [Publications MetaNetX](https://www.metanetx.org/mnxdoc/cite.html)
+
+---
+
 # Informations de session
 
 ```{r session}

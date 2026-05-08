@@ -1133,6 +1133,14 @@ They are not stable across releases. Use representative identifiers from source 
 
 ---
 
+# Interesting resources
+
+1. [Introduction to SPARQL](https://sib-swiss.github.io/SPARQL_course/)
+
+2. [MetaNetX publications](https://www.metanetx.org/mnxdoc/cite.html)
+
+---
+
 # Session information
 
 ```{r session}
