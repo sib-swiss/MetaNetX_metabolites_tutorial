@@ -1133,7 +1133,7 @@ They are not stable across releases. Use representative identifiers from source 
 
 ---
 
-# Interesting resources
+# Documentation
 
 1. [Introduction to SPARQL](https://sib-swiss.github.io/SPARQL_course/)
 

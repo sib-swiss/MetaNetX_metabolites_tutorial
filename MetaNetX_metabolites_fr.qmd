@@ -1130,7 +1130,7 @@ Ils ne sont pas stables entre releases. Utiliser les représentants des ensemble
 
 ---
 
-# Ressources intéressantes
+# Documentation
 
 1. [Introduction à SPARQL](https://sib-swiss.github.io/SPARQL_course/)
 
