@@ -84,9 +84,16 @@ install.packages(c("sparqlr","readxl","dplyr","tidyr","stringr",
 
 # Introduction
 
+## Métabolites dans MetaNetX
+
+Les bases de données de réseaux métaboliques contiennent des métabolites qui agissent comme substrats et produits des réactions biochimiques. Cependant, il existe de nombreuses incohérences dans les noms ou les structures chimiques entre les différentes bases de données, ainsi que dans leurs références croisées.
+
+L’algorithme MetaNetX harmonise les identifiants des entités chimiques en se basant sur les informations structurales, le contexte réactionnel et, dans une moindre mesure, sur les références croisées et les noms provenant des bases de données sources. **Dans MetaNetX, les métabolites sont définis comme des ensembles d’identifiants d’entités chimiques considérées comme équivalentes.**  
+Au sein d’un ensemble, les entités chimiques peuvent s’interconvertir via des réactions spontanées — telles que les réactions acido-basiques ou la tautomérie — qui se produisent spontanément en solution aqueuse (comme dans le métabolisme cellulaire). De plus, les entités participant à des réactions catalysées par des enzymes sont systématiquement affectées à des ensembles distincts et considérées comme des métabolites différents.
+
 ## Pourquoi identifier correctement les métabolites ?
 
-En métabolomique, un même composé peut porter des dizaines d'identifiants différents selon la base de données utilisée. Sans réconciliation, deux analyses portant sur le même métabolite peuvent sembler porter sur des entités différentes — et vice versa.
+En métabolomique, une même entité chimique peut posséder des dizaines d’identifiants différents selon la base de données utilisée. Sans harmonisation, deux analyses portant sur un même métabolite peuvent sembler impliquer des entités différentes — et inversement.
 
 [MetaNetX](https://www.metanetx.org/) agrège les identifiants de **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK** et les regroupe en **ensembles (sets)** basés sur :
 
@@ -199,6 +206,10 @@ MetaNetX distingue les entités **génériques** (ex. *alanine* sans stéréochi
 
 > **Pourquoi c'est important pour la qualité des données ?**  
 > Si votre jeu de données contient à la fois l'*alanine* générique et la *L-alanine* dans des colonnes séparées, vous avez potentiellement une redondance — mais ce ne sont pas non plus exactement le même composé. Il faut savoir lequel vous avez réellement mesuré.
+
+Mappez la liste des identifiants d’alanine à l’aide du mappeur d’identifiants MetaNetX, de l’éditeur SPARQL ou du package R sparqlr, puis examinez les résultats.
+Ensuite, récupérez les ensembles de référence MNX associés aux identifiants d’alanine et analysez leurs relations d’isomérie.
+Dans le graphe de connaissances MetaNetX, les relations d’isomérie entre entités chimiques sont représentées par le prédicat `mnx:chemIsom`.
 
 ## Identifiants d'entrée — liste complète famille alanine
 

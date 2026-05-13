@@ -79,9 +79,16 @@ install.packages(c("sparqlr","readxl","dplyr","tidyr","stringr",
 
 # Introduction
 
+## Metabolites in MetaNetX
+
+Metabolic networks databases consist of metabolites that act as substrates and products of biochemical reactions. However, there exists numerous inconsistencies in name or chemical structures within the different databases, and through their cross-references.
+
+The MetaNetX algorithm reconciles chemical-entity identifiers according to structural information, reaction context, and, to a lesser extent, cross-references and names from source databases.**In MetaNetX, metabolites are defined as sets of chemical-entity identifiers that are considered equivalent**.
+Within a set, chemical entities may interconvert via spontaneous reactions—such as acid–base reaction or tautomerism — which spontaneously takes place in aqueous solution (as in cellular metabolism). In addition, entities participating in enzymatically catalyzed reactions are systematically assigned to distinct sets and considered distinct metabolites.
+
 ## Why correctly identify metabolites?
 
-In metabolomics, the same compound can have dozens of different identifiers depending on the database used. Without reconciliation, two analyses of the same metabolite may appear to involve different entities — and vice versa.
+In metabolomics, the same chemical entity can have dozens of different identifiers depending on the database used. Without reconciliation, two analyses of the same metabolite may appear to involve different entities — and vice versa.
 
 [MetaNetX](https://www.metanetx.org/) aggregates identifiers from **KEGG, ChEBI, HMDB, BiGG, SEED, VMH, MetaCyc, Rhea, SABIO-RK**, and groups them into **sets** based on :
 
@@ -198,6 +205,11 @@ MetaNetX distinguishes **generic entities** (e.g., *alanine* without stereochemi
 
 > **Why is this important for data quality?**  
 > If your dataset contains both generic *alanine* and *L-alanine* in separate columns, you potentially introduce redundancy — but they are not exactly the same compound either. It is essential to know which one was actually measured.
+
+Map the list of alanine identifiers using the MetaNetX ID mapper, the SPARQL editor, or the sparqlr R package, and examine the results.Then, retrieve the MNX reference sets associated with the alanine identifiers and analyse their isomer relationships.
+
+In the MetaNetX knowledge graph, isomer relationships between chemical entities are represented by the predicate `mnx:chemIsom`.
+
 
 ## Input identifiers — complete alanine family
 
